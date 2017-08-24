@@ -94,15 +94,19 @@ def main():
         check_for_repo = subprocess.check_output(['git', 'rev-parse', '--is-inside-work-tree'], stderr=subprocess.STDOUT)
         if check_for_repo.strip().lower() != 'true':
             subprocess.call(['git', 'init'])
-        subprocess.call(['git', 'add', '.'])
-        subprocess.call(['git', 'commit'])
-        if args.do_git_push:
-            subprocess.call(['git', 'push'])
+        add_ok = subprocess.call(['git', 'add', '.']) == 0
+        if not add_ok:
+            print('Adding changes to the git repo failed.  You will need commit your changes manually.')
+        else:
+            commit_ok = subprocess.call(['git', 'commit']) == 0
+            if commit_ok and args.do_git_push:
+                subprocess.call(['git', 'push'])
 
     print('\nFinished generating your GitPitch presentations.')
     print('Remember: You must manually remove directories for any presentations that are no longer current.\n')
-    if not args.do_git_push:
+    if not args.do_git_push and commit_ok:
         print('To publish, perform a `git push` next.\n')
+
 
 def generate_index_body(md_and_yaml_files):
     '''

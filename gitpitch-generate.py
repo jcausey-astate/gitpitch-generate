@@ -1,7 +1,31 @@
 #!/usr/bin/env python
 '''
-`gitpitch-generate`
-A tool for generating entire groups of presentations using GitPitch quickly and easily.
+A tool for generating groups of related presentations using GitPitch quickly and easily.
+
+This tool will automatically look for source Markdown and optionally corresponding
+YAML files in the 'assets/src' directory (relative to the current working directory), or 
+you can specify a custom source directory with the --src-dir option.
+
+Source Markdown files will be transferred to the output directory (the current working
+directory or the directory supplied by the --output-dir option) as directories containing
+a PITCHME.md file (and optionally the corresponding PITCHME.yaml) as required by GitPitch.
+
+An "index" slide will be created in the top level direcotry of your output directory.  
+The index slide will contain auto-generated links to each of your presentations.
+
+You can specify the same YAML file for all presentations by supplying a 'common.yaml' file
+in the source directory; custom YAML files that are named to match their corresponding 
+Markdown file will override this default file.
+
+You can also supply a custom YAML file for the index slide by including a file named
+'index.yaml' in the source directory.
+
+All other assets (images and custom css) should be stored in the corresponding
+directories under 'assets/' as required by GitPitch (this tool is agnostic of these
+files).
+
+Finally, the tool will automatically add all changes to your git repository and initiate
+a git commit for you when it finishes, unless you specify the --no-git flag.
 '''
 from __future__ import print_function
 
@@ -59,24 +83,63 @@ def main():
     if os.path.isfile(index_yaml):
         copy2(index_yaml, os.path.join(out_dir, 'PITCHME.yaml'))
 
-    index_md_body = ''
-    for presentation_name in sorted(md_and_yaml_files.keys()):
-        index_md_body += '[{0}](?p={0})\n\n'.format(presentation_name)
+    index_md_body = generate_index_body(md_and_yaml_files)
 
     with open(os.path.join(out_dir, 'PITCHME.md'), 'wb') as fout:
         fout.write(index_md_body)
 
     # Now initiate a git commit:
-    subprocess.call(['cd', out_dir])
-    check_for_repo = subprocess.check_output(['git', 'rev-parse', '--is-inside-work-tree'], stderr=subprocess.STDOUT)
-    if check_for_repo.strip().lower() != 'true':
-        subprocess.call(['git', 'init'])
-    subprocess.call(['git', 'add', '.'])
-    subprocess.call(['git', 'commit'])
+    if args.do_git:
+        subprocess.call(['cd', out_dir])
+        check_for_repo = subprocess.check_output(['git', 'rev-parse', '--is-inside-work-tree'], stderr=subprocess.STDOUT)
+        if check_for_repo.strip().lower() != 'true':
+            subprocess.call(['git', 'init'])
+        subprocess.call(['git', 'add', '.'])
+        subprocess.call(['git', 'commit'])
+        if args.do_git_push:
+            subprocess.call(['git', 'push'])
 
     print('\nFinished generating your GitPitch presentations.')
-    print('Remember: You must manually remove any presentations that are no longer current.\n')
-    print('To publish, perform a `git push` next.\n')
+    print('Remember: You must manually remove directories for any presentations that are no longer current.\n')
+    if not args.do_git_push:
+        print('To publish, perform a `git push` next.\n')
+
+def generate_index_body(md_and_yaml_files):
+    '''
+    Generate an index for each presentation in the main directory.
+    If there are more then 10 presentations, create a table with 
+    up to 10 presentations per column (or up to 3 columns); large numbers
+    of presentations will have to be handled with special CSS anyway.
+    '''
+    index_md_body = ''
+    n_presentations = len(md_and_yaml_files.keys()) 
+    if n_presentations <= 10:  # Simple list
+        for presentation_name in sorted(md_and_yaml_files.keys()):
+            index_md_body += '[{0}](?p={0})\n\n'.format(presentation_name)
+    else:
+        # We need a table.
+        n_cols         = min(int(n_presentations / 10), 3)
+        n_per_col      = int(round(n_presentations / n_cols))
+        index_md_table = [[] for r in range(n_per_col)]
+        presentations  = sorted(md_and_yaml_files.keys())
+        i              = 0
+        # Do the header:
+        header =  '|{}|\n'.format('|'.join('   ' for c in range(n_cols)))
+        header += '|{}|\n'.format('|'.join('---' for c in range(n_cols)))
+        index_md_body += header
+        # Now the body:
+        for c in range(n_cols):
+            for r in range(n_per_col):
+                index_md_table[r].append('[{0}](?p={0})'.format(presentations[i]))
+                i += 1
+        for row in index_md_table:
+            row_text = '| {} |\n'.format(' | '.join(row))
+            index_md_body += row_text
+
+        # Finish with another newline
+        index_md_body += '\n'
+        
+    return index_md_body
 
 
 def slugify(value, allow_unicode=False):
@@ -141,6 +204,12 @@ def get_args(do_usage=False):
         help='Directory containing Markdown and YAML source files for each presentation.')
     parser.add_argument('--output-dir', metavar='output_directory', required=False, default=None,
         help='Top-level directory where the main presentation index and sub-presentations will be placed.')
+    
+    git_group = parser.add_mutually_exclusive_group()
+    git_group.add_argument('--no-git', dest='do_git', action='store_false', 
+        help='Do not perform any `git` operations after generating the file heirarchy.')
+    git_group.add_argument('--push', dest='do_git_push', action='store_true', 
+        help='Automatically initiate a `git push` after generating and committing the changes.')
 
     if do_usage is not False:
         if type(do_usage) == type('str'):

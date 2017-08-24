@@ -29,7 +29,7 @@ a git commit for you when it finishes, unless you specify the --no-git flag.
 '''
 from __future__ import print_function
 
-import sys, os, subprocess
+import sys, os, subprocess, math
 from shutil import copy2
 
 def main():
@@ -91,7 +91,11 @@ def main():
     # Now initiate a git commit:
     if args.do_git:
         subprocess.call(['cd', out_dir])
-        check_for_repo = subprocess.check_output(['git', 'rev-parse', '--is-inside-work-tree'], stderr=subprocess.STDOUT)
+        check_for_repo = ''
+        try:
+            check_for_repo = subprocess.check_output(['git', 'rev-parse', '--is-inside-work-tree'], stderr=subprocess.STDOUT)
+        except:
+            pass  # the check_output call will throw if the repo doesn't exist; that's OK, the next step will initialize it.
         if check_for_repo.strip().lower() != 'true':
             subprocess.call(['git', 'init'])
         add_ok = subprocess.call(['git', 'add', '.']) == 0
@@ -111,38 +115,35 @@ def main():
 def generate_index_body(md_and_yaml_files):
     '''
     Generate an index for each presentation in the main directory.
-    If there are more then 10 presentations, create a table with 
-    up to 10 presentations per column (or up to 3 columns); large numbers
-    of presentations will have to be handled with special CSS anyway.
+    Uses a table to "tighten up" the vertical spacing; one column
+    is used if there are 10 or fewer presentations, otherwise the
+    table expands to up to 3 columns.
     '''
-    index_md_body = ''
+    index_md_body   = ''
     n_presentations = len(md_and_yaml_files.keys()) 
-    if n_presentations <= 10:  # Simple list
-        for presentation_name in sorted(md_and_yaml_files.keys()):
-            index_md_body += '[{0}](?p={0})\n\n'.format(presentation_name)
-    else:
-        # We need a table.
-        n_cols         = min(int(n_presentations / 10), 3)
-        n_per_col      = int(round(n_presentations / n_cols))
-        index_md_table = [[] for r in range(n_per_col)]
-        presentations  = sorted(md_and_yaml_files.keys())
-        i              = 0
-        # Do the header:
-        header =  '|{}|\n'.format('|'.join('   ' for c in range(n_cols)))
-        header += '|{}|\n'.format('|'.join('---' for c in range(n_cols)))
-        index_md_body += header
-        # Now the body:
-        for c in range(n_cols):
-            for r in range(n_per_col):
-                index_md_table[r].append('[{0}](?p={0})'.format(presentations[i]))
-                i += 1
-        for row in index_md_table:
-            row_text = '| {} |\n'.format(' | '.join(row))
-            index_md_body += row_text
+    n_cols          = min(int(math.ceil(n_presentations / float(10))), 3)
+    n_per_col       = int(round(n_presentations / float(n_cols)))
+    index_md_table  = [[] for r in range(n_per_col)]
+    presentations   = sorted(md_and_yaml_files.keys())
+    i               = 0
+    # Do the header:
+    header =  '|{}|\n'.format('|'.join('   ' for c in range(n_cols)))
+    header += '|{}|\n'.format('|'.join('---' for c in range(n_cols)))
+    index_md_body += header
+    # Now the body:
+    for c in range(n_cols):
+        for r in range(n_per_col):
+            index_md_table[r].append('[{0}](?p={0})'.format(
+                presentations[i] if i < n_presentations else ''
+            ))
+            i += 1
+    for row in index_md_table:
+        row_text = '| {} |\n'.format(' | '.join(row))
+        index_md_body += row_text
 
-        # Finish with another newline
-        index_md_body += '\n'
-        
+    # Finish with another newline
+    index_md_body += '\n'
+    
     return index_md_body
 
 

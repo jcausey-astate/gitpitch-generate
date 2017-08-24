@@ -133,9 +133,9 @@ def generate_index_body(md_and_yaml_files):
     # Now the body:
     for c in range(n_cols):
         for r in range(n_per_col):
-            index_md_table[r].append('[{0}](?p={0})'.format(
-                presentations[i] if i < n_presentations else ''
-            ))
+            index_md_table[r].append(
+                '[{0}](?p={0})'.format(presentations[i]) if i < n_presentations else ''
+            )
             i += 1
     for row in index_md_table:
         row_text = '| {} |\n'.format(' | '.join(row))

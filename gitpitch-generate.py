@@ -38,6 +38,20 @@ def main():
     src_dir = args.src_dir    if args.src_dir    is not None else  os.path.join(os.getcwd(), 'assets', 'src')
     out_dir = args.output_dir if args.output_dir is not None else  os.getcwd()
 
+    # If the user has supplied a CONFIG.yaml file in the 'assets' directory, load the configuration, or else
+    # load defaults.  The supported config parameters are:
+    #   'url' - a full, custom url to a gitpitch server other than gitpitch.com; this should include the full
+    #           path to the repository page.
+    #   'repo_name' - the name of the repository in the format e.g. 'user_name/repo_name' -- this is not used
+    #                 if 'url' is supplied and non-empty.
+    #   'service' - the name of the service (i.e. 'github', 'gitlab', 'gitea', 'gogs', 'bitbucket')
+    config   = load_config_yaml()
+    base_url = config['url'] if 'url' in config and config['url'] != ''                 \
+                             else 'https://gitpitch.com/{}'.format(config['repo_name']) \
+                                 if 'repo_name' in config and config['repo_name'] != '' \
+                                 else ''
+    service  = config['service'].lower() if 'service' in config and config['service'] != '' else ''
+
     # * Look for Markdown files in the src directory; each .md file will become a directory at the top-level.
     # * Look for YAML files named the same as the presentation source .md files and use those preferentially.
     #     - If no custom YAML exists, but a 'common.yaml' is present, use that one.
@@ -83,12 +97,13 @@ def main():
     if os.path.isfile(index_yaml):
         copy2(index_yaml, os.path.join(out_dir, 'PITCHME.yaml'))
 
-    index_md_body = generate_index_body(md_and_yaml_files)
+    index_md_body = generate_index_body(md_and_yaml_files, base_url, service)
 
     with open(os.path.join(out_dir, 'PITCHME.md'), 'wb') as fout:
         fout.write(index_md_body)
 
     # Now initiate a git commit:
+    commit_ok = False
     if args.do_git:
         subprocess.call(['cd', out_dir])
         check_for_repo = ''
@@ -107,12 +122,14 @@ def main():
                 subprocess.call(['git', 'push'])
 
     print('\nFinished generating your GitPitch presentations.')
+    if args.do_git and not commit_ok:
+        print('WARNING: Your changes have not been committed to the repository; try again or commit manually.', file=sys.stderr)
     print('Remember: You must manually remove directories for any presentations that are no longer current.\n')
     if not args.do_git_push and commit_ok:
         print('To publish, perform a `git push` next.\n')
 
 
-def generate_index_body(md_and_yaml_files):
+def generate_index_body(md_and_yaml_files, base_url='', service=None):
     '''
     Generate an index for each presentation in the main directory.
     Uses a table to "tighten up" the vertical spacing; one column
@@ -126,6 +143,9 @@ def generate_index_body(md_and_yaml_files):
     index_md_table  = [[] for r in range(n_per_col)]
     presentations   = sorted(md_and_yaml_files.keys())
     i               = 0
+    if service == '':
+        service = None
+    service = '&grs={}'.format(service) if service is not None else ''
     # Do the header:
     header =  '|{}|\n'.format('|'.join('   ' for c in range(n_cols)))
     header += '|{}|\n'.format('|'.join('---' for c in range(n_cols)))
@@ -134,7 +154,8 @@ def generate_index_body(md_and_yaml_files):
     for c in range(n_cols):
         for r in range(n_per_col):
             index_md_table[r].append(
-                '<a href="?p={0}">{0}</a>'.format(presentations[i]) if i < n_presentations else ''
+                #'<a href="{0}?p={1}{2}">{1}</a>'.format(base_url, presentations[i], service) if i < n_presentations else ''
+                '[{1}]({0}?p={1}{2})'.format(base_url, presentations[i], service) if i < n_presentations else ''
             )
             i += 1
     for row in index_md_table:
@@ -145,6 +166,38 @@ def generate_index_body(md_and_yaml_files):
     index_md_body += '\n'
     
     return index_md_body
+
+def load_config_yaml():
+    '''
+    Returns configuration values or defaults.
+    '''
+    yaml = None
+    try:
+        import yaml
+    except:
+        pass
+    defaults = {
+        'url': '',
+        'repo_name': '',
+        'service': 'github'
+    }
+    config = defaults
+    # See if the config file is there:
+    config_yaml = os.path.join(os.getcwd(), 'assets', 'CONFIG.yaml')
+    if os.path.isfile(config_yaml):
+        if yaml is None:
+            print('\nNOTICE:\nYou have defined a CONFIG.yaml file, but to make use of it,\n'
+                  'you need to install the PyYAML package.\n'
+                  'You can try:\n\tpip install pyyaml\n'
+                  'Continuing with defaults since CONFIG.yaml cannot be read.\n', file=sys.stderr)
+            import time
+            time.sleep(2)
+        else:
+            with open(config_yaml, 'r') as fin:
+                config = yaml.load(fin)
+    return config
+
+
 
 
 def slugify(value, allow_unicode=False):

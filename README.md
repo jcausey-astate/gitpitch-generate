@@ -60,3 +60,15 @@ optional arguments:
   --no-git              Do not perform any `git` operations after generating the file heirarchy.
   --push                Automatically initiate a `git push` after generating and committing the changes.
 ```
+
+## Configuration
+You can specify the repository name, hosting service, or even a custom URL by creating a file named "CONFIG.yaml" in the "assets" directory.
+
+Configuration values you can set are:
+
+* `repo_name` : The name of the repository (including your username for e.g. Github).  This is used to build the links on the index page, which will cause your presentations to load with all of GitPitch's chrome (controls and options, like printing) intact.  If you do not supply this (or the `url` option), then presentations load in a full-frame mode that is not easy to share or print.
+* `service` : Your repository hosting service.  If you do not specify this, it defaults to "github".  Valid options are "github", "gitlab", "gitea", "gogs", and "bitbucket".
+* `url` : A direct URL to the top-level presentation directory (i.e. your presentation index) on your GitPitch server, which may be a custom instance.  Generally you will only need to specify this option if you are running a custom GitPitch instance; setting the `repo_name` is enough for most GitPitch users.
+
+Note:  To use CONFIG.yaml, you must install the [PyYAML](https://github.com/yaml/pyyaml) package if you do not have it already.
+

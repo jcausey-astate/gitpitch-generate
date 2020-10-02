@@ -1,6 +1,12 @@
 # `gitpitch-generate`
 A tool for generating groups of related presentations using GitPitch quickly and easily.
 
+## ARCHIVED Repo
+As of Oct 1, 2020, GitPitch went to version 4.0 which changed the architecture and pricing
+model significantly.  I am not sure that this tool will work with version 4.0, and I do 
+not intend to update the codebase, as I am migrating away from GitPitch for my own class
+lecture slides.  Feel free to fork this repo if you find it useful though!
+
 ## Synopsis
 This tool will automatically look for source Markdown and optionally corresponding
 YAML files in the "assets/src" directory (relative to the current working directory), or 
